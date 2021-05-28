@@ -84,14 +84,16 @@
             }
         }
         if (resultArray.count) {
-            [self testCompressionSession:resultArray];
+            [self compressImages:resultArray completion:^(NSString *fileName) {
+                NSLog(@"file： %@", fileName);
+            }];
         }
     }];
 }
 
 #pragma mark- 按钮点击操作
 //视频合成按钮点击操作
-- (void)testCompressionSession:(NSArray *)imageArray {
+- (void)compressImages:(NSArray <UIImage *> *)imageArray completion:(void(^)(NSString *fileName))block {
     //设置mov路径
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,NSUserDomainMask,YES);
     NSString *moviePath = [[paths objectAtIndex:0]stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.mov",@"test"]];
@@ -100,7 +102,6 @@
     NSError *error = nil;
     //    转成UTF-8编码
     unlink([moviePath UTF8String]);
-    NSLog(@"path->%@",moviePath);
     //     iphone提供了AVFoundation库来方便的操作多媒体设备，AVAssetWriter这个类可以方便的将图像和音频写成一个完整的视频文件
     AVAssetWriter *videoWriter = [[AVAssetWriter alloc]initWithURL:[NSURL fileURLWithPath:moviePath]fileType:AVFileTypeQuickTimeMovie error:&error];
     NSParameterAssert(videoWriter);
@@ -120,12 +121,9 @@
     AVAssetWriterInputPixelBufferAdaptor *adaptor = [AVAssetWriterInputPixelBufferAdaptor assetWriterInputPixelBufferAdaptorWithAssetWriterInput:writerInput sourcePixelBufferAttributes:sourcePixelBufferAttributesDictionary];
     NSParameterAssert(writerInput);
     NSParameterAssert([videoWriter canAddInput:writerInput]);
-    if([videoWriter canAddInput:writerInput]){
-        NSLog(@"11111");
-    } else {
-        NSLog(@"22222");
+    if([videoWriter canAddInput:writerInput]) {
+        [videoWriter addInput:writerInput];
     }
-    [videoWriter addInput:writerInput];
     [videoWriter startWriting];
     [videoWriter startSessionAtSourceTime:kCMTimeZero];
     //合成多张图片为一个视频文件
@@ -136,9 +134,10 @@
             if(++frame >= [imageArray count]) {
                 [writerInput markAsFinished];
                 [videoWriter finishWritingWithCompletionHandler:^{
-                    NSLog(@"完成");
                     [[NSOperationQueue mainQueue] addOperationWithBlock:^{
-//                        self.ww_progressLbe.text = @"视频合成完毕";
+                        if (block) {
+                            block(moviePath);
+                        }
                     }];
                     
                 }];
@@ -151,8 +150,8 @@
                 //                self.ww_progressLbe.text = [NSString stringWithFormat:@"合成进度:%@",progress];
             }];
             
-            buffer = (CVPixelBufferRef)[self pixelBufferFromCGImage:[[imageArray objectAtIndex:idx]CGImage]size:size];
-            if(buffer){
+            buffer = (CVPixelBufferRef)[self pixelBufferFromCGImage:[[imageArray objectAtIndex:idx] CGImage] size:size];
+            if(buffer) {
                 //设置每秒钟播放图片的个数
                 if(![adaptor appendPixelBuffer:buffer withPresentationTime:CMTimeMake(frame,25)]) {
                     NSLog(@"FAIL");
